@@ -13,7 +13,7 @@
 
 <script setup>
 import _ from 'lodash'
-import { computed, onMounted, ref, watch } from "vue"
+import { computed, nextTick, onMounted, ref, watch } from "vue"
 import 'viewerjs/dist/viewer.css'
 import Viewer from 'viewerjs'
 
@@ -39,12 +39,7 @@ let viewer = ref(null)
 onMounted(()=>{
   stopCapture()
 
-  viewer.value = new Viewer(imgs.value.$el, {
-    inline: true,
-    viewed() {
-      viewer.zoomTo(1);
-    },
-  })
+  viewer.value = new Viewer(imgs.value.$el)
 })
 
 async function startCapture() {
@@ -139,10 +134,11 @@ async function setHistory () {
       img: canvasPreview.value.toDataURL(),
       time: +new Date()
     })
+
+    await nextTick()
     viewer.value.update()
-    console.log(`[LOG] -> setHistory -> viewer`, viewer)
   } catch (err) {
-    console.log(`[LOG] -> si -> err`, err)
+    console.log(`[LOG] -> setHistory -> err`, err)
     stopCapture()
   }
 }
