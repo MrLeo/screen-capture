@@ -12,6 +12,13 @@
       <p>{{item.time}}</p>
     </div>
   </transition-group>
+
+
+  <div class="imgs" v-if="fileList && fileList.length" ref="imgs2" style="margin-top: 100vh">
+    <div class="img-block" v-for="item in fileList" :key="item.id">
+      <img :src="item.attributes.url" :alt="item.attributes.name">
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -27,6 +34,13 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from "vue"
 import dayjs from "dayjs"
 import 'viewerjs/dist/viewer.css'
 import Viewer from 'viewerjs' // https://github.com/fengyuanchen/viewerjs
+import AV from 'leancloud-storage'
+
+AV.init({
+  appId: "7qjY0VDwGw02BmgMqqGfDFO0-gzGzoHsz",
+  appKey: "eYX7CBXn2T7iUGa9LAUnIt9q",
+  serverURL: "https://7qjy0vdw.lc-cn-n1-shared.com"
+})
 
 const recordState = ref(false)
 const desktop = ref(null)
@@ -53,6 +67,8 @@ const imgs = ref(null)
 const screens = ref([])
 let viewer = ref(null)
 
+const fileList = ref([])
+
 let countdown = null
 
 onMounted(()=>{
@@ -61,6 +77,13 @@ onMounted(()=>{
   viewer.value = new Viewer(imgs.value.$el)
   imgs.value.$el.addEventListener('show', function () {
     recordState.value = false
+  })
+
+  const query = new AV.Query('_File')
+  query.limit(50)
+  query.descending('createdAt')
+  query.find().then((res) => {
+    fileList.value = res
   })
 })
 
@@ -144,7 +167,7 @@ function drawCature (name, source) {
   cvs.height = source.value.videoHeight
 
   ctx.drawImage(
-    desktop.value,
+    source.value,
     0,
     0,
     cvs.width,
@@ -182,12 +205,14 @@ function drawImage () {
 
 async function setHistory () {
   try {
-    screens.value.unshift({
+    const capture = {
       img: canvas.preview.toDataURL(),
       desktop: canvas.desktopCature.toDataURL(),
       camera: canvas.cameraCature.toDataURL(),
       time: dayjs().format('YYYY-MM-DD HH:mm:ss')
-    })
+    }
+    screens.value.unshift()
+    saveLeancloud(capture)
 
     await nextTick()
     viewer.value.update()
@@ -195,6 +220,35 @@ async function setHistory () {
     console.log(`[LOG] -> setHistory -> err`, err)
     stopCapture()
   }
+}
+
+// https://leancloud.cn/docs/leanstorage_guide-js.html#hash632374954
+function saveLeancloud(capture) {
+  const name = `${+new Date()}_${_.random(10, true)}`
+  
+  const previewFile = new AV.File(`preview_${name}.png`, { base64: capture.desktop })
+  previewFile.save().then((file) => {
+    // console.log(`previewFile 文件保存完成。objectId：${file.id}`,file);
+    capture.previewFile = {id: file.id, url: file.attributes.url}
+  }, (error) => {
+    // console.log(`[LOG] -> file.save -> error`, error)
+  })
+
+  const desktopFile = new AV.File(`desktop_${name}.png`, { base64: capture.desktop })
+  desktopFile.save().then((file) => {
+    // console.log(`desktopFile 文件保存完成。objectId：${file.id}`,file);
+    capture.desktopFile = {id: file.id, url: file.attributes.url}
+  }, (error) => {
+    // console.log(`[LOG] -> file.save -> error`, error)
+  })
+
+  const cameraFile = new AV.File(`camera_${name}.png`, { base64: capture.camera })
+  cameraFile.save().then((file) => {
+    // console.log(`cameraFile 文件保存完成。objectId：${file.id}`,file);
+    capture.cameraFile = {id: file.id, url: file.attributes.url}
+  }, (error) => {
+    // console.log(`[LOG] -> file.save -> error`, error)
+  })
 }
 
 function addImg () {

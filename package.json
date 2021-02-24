@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "dayjs": "^1.10.4",
+    "leancloud-storage": "^4.10.0",
     "lodash": "^4.17.21",
     "viewerjs": "^1.9.0",
     "vue": "^3.0.5"
