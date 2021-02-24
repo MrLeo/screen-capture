@@ -1,5 +1,5 @@
 <template>
-  <div class="video-preview" style="position: relative; width: 500px; margin: 0 auto;">
+  <div style="position: relative; width: 500px; margin: 0 auto;">
     <video ref="desktop" autoplay style="width: 500px;"></video>
     <video ref="camera" autoplay style="position: absolute; width: 100px; top: 0; left: 0;"></video>
   </div>
@@ -13,9 +13,9 @@
 
 <script setup>
 import _ from 'lodash'
-import { computed, nextTick, onMounted, ref, watch } from "vue"
+import { computed, nextTick, onMounted, reactive, ref, watch } from "vue"
 import 'viewerjs/dist/viewer.css'
-import Viewer from 'viewerjs'
+import Viewer from 'viewerjs' // https://github.com/fengyuanchen/viewerjs
 
 const recordState = ref(false)
 const desktop = ref(null)
@@ -25,9 +25,15 @@ const camera = ref(null)
 // desktop.value.autoplay = true
 // camera.value.autoplay = true
 
-const canvasPreview = ref(document.createElement("canvas"))
-canvasPreview.value.width = window.screen.width
-canvasPreview.value.height = window.screen.height
+const canvas = reactive({
+  desktopCature: document.createElement("canvas"),
+  cameraCature: document.createElement("canvas"),
+  preview: document.createElement("canvas")
+})
+_.forEach(canvas, val => {
+  val.width = window.screen.width
+  val.height = window.screen.height
+})
 
 const times = ref(0)
 const btnText = computed(()=> (recordState.value ? `🛑  截屏自动生成中: ${times.value}s` : '点击开始生成截屏'))
@@ -96,42 +102,60 @@ const stopCapture = () => {
       camera.value.srcObject = null
     }
   } catch (err) {
-    console.log(`[error] -> stopCapture -> camera`, err)
+    console.error(`[error] -> stopCapture -> camera`, err)
   }
 }
 
-function drawImage () {
-  const ctx = canvasPreview.value.getContext('2d')
-  if(!ctx) return stopCapture()
+function drawCature (name, source) {
+  const cvs = canvas[name]
+  const ctx = cvs.getContext('2d')
 
-  canvasPreview.value.width = desktop.value.videoWidth
-  canvasPreview.value.height = desktop.value.videoHeight
+  cvs.width = source.value.videoWidth
+  cvs.height = source.value.videoHeight
 
   ctx.drawImage(
     desktop.value,
     0,
     0,
-    canvasPreview.value.width,
-    canvasPreview.value.height
+    cvs.width,
+    cvs.height
   )
 
-  const cameraW = 200
-  const cameraH = cameraW / (camera.value.videoWidth / camera.value.videoHeight)
-  ctx.drawImage(camera.value, 0, 0, cameraW, cameraH)
+  return ctx
+}
 
-  // 圆形摄像头
-  // ctx.save()
-  // const r = 200
-  // ctx.arc(r, r, r, 0, 2 * Math.PI)
-  // ctx.clip()
-  // ctx.drawImage(camera.value, 0, 0, r * 2, r * 2)
-  // ctx.restore()
+function drawImage () {
+  try {
+    drawCature('desktopCature', desktop)
+    drawCature('cameraCature', camera)
+  
+    const ctx = drawCature('preview', desktop)
+    if(!ctx) throw new Error('error in canvas.getContext') 
+  
+    // 矩形摄像头
+    const cameraW = 200
+    const cameraH = cameraW / (camera.value.videoWidth / camera.value.videoHeight)
+    ctx.drawImage(camera.value, 0, 0, cameraW, cameraH)
+  
+    // 圆形摄像头
+    // ctx.save()
+    // const r = 200
+    // ctx.arc(r, r, r, 0, 2 * Math.PI)
+    // ctx.clip()
+    // ctx.drawImage(camera.value, 0, 0, r * 2, r * 2)
+    // ctx.restore()
+  } catch (err) {
+    console.error(`[LOG] -> drawImage -> err`, err)
+    stopCapture()
+  }
 }
 
 async function setHistory () {
   try {
     screens.value.unshift({
-      img: canvasPreview.value.toDataURL(),
+      img: canvas.preview.toDataURL(),
+      desktop: canvas.desktopCature.toDataURL(),
+      camera: canvas.cameraCature.toDataURL(),
       time: +new Date()
     })
 
