@@ -2,9 +2,9 @@
   <div class="control">
     <a href="javascript:void(0);" @click="screenCapture" class="btn" :class="{recording: recordState}">{{btnText}}</a>
   </div>
-  <div class="imgs">
+  <transition-group name="list" tag="div" class="imgs">
     <img v-for="item in screens" :key="item.time" :src="item.img" :alt="item.time">
-  </div>
+  </transition-group>
 </template>
 
 <script setup>
@@ -88,6 +88,13 @@ onMounted(()=>stopCapture())
 function drawImage () {
   const ctx = canvasPreview.value.getContext('2d')
   if(!ctx) return stopCapture()
+
+  console.log(`[LOG] -> drawImage -> desktop`, desktop)
+  console.log(`[LOG] -> drawImage -> camera`, camera)
+  
+  canvasPreview.value.width = desktop.value.videoWidth
+  canvasPreview.value.height = desktop.value.videoHeight
+
   ctx.drawImage(
     desktop.value,
     0,
@@ -95,6 +102,13 @@ function drawImage () {
     canvasPreview.value.width,
     canvasPreview.value.height
   )
+
+  ctx.save()
+  const r = 200
+  ctx.arc(r, r, r, 0, 2 * Math.PI)
+  ctx.clip()
+  ctx.drawImage(camera.value, 0, 0, r * 2, r * 2)
+  ctx.restore()
 }
 
 async function setHistory () {
@@ -124,15 +138,17 @@ async function screenCapture(){
   recordState.value=true
 
   let times = 5
-  countdown = setInterval(() => {
-    if(times-- < 0) {
+  const countdownFun = () => {
+    btnText.value = `🛑  截屏自动生成中: ${times}s`
+    if(times-- <= 0) {
       times = 5
-      btnText.value = `🛑  截屏自动生成中: ${times}s`
       drawImage()
       setHistory()
     }
-  }, 1000)
+  }
+  countdown = setInterval(countdownFun, 1000)
 
+  setTimeout(() => drawImage() && setHistory(), 10)
 }
 </script>
 
@@ -142,24 +158,6 @@ async function screenCapture(){
   align-items: center;
   justify-content: center;
   flex-direction: column;
-}
-.control .video{
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-}
-.control video {
-  /* width: 100vw;
-  height: 100vh;
-  position: absolute;
-  top: 0;
-  left: 0;
-  transform: translateX(-110%); */
-  
-  width: 500px;
-  border: 1px solid #eee;
-  background: #000;
 }
 .control .btn {
   border: 1px solid #eee;
@@ -171,7 +169,6 @@ async function screenCapture(){
   margin: 16px;
   border-radius: 5px;
 }
-
 @keyframes recording { 
   from { background-color: rgba(255, 0, 0, 1); } 
   to { background-color: rgba(255, 0, 0, 0.5); }
@@ -192,5 +189,16 @@ async function screenCapture(){
   margin: 10px;
   border: 1px solid #ccc;
   width: 100px;
+}
+
+.list-enter-active,
+.list-leave-active, 
+.list-move {
+  transition: all 0.5s;
+}
+.list-enter-from,
+.list-leave-to {
+  opacity: 0;
+  transform: translateY(-30px);
 }
 </style>
