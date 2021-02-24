@@ -80,7 +80,7 @@ onMounted(()=>{
   })
 
   const query = new AV.Query('_File')
-  query.limit(50)
+  query.limit(1000)
   query.descending('createdAt')
   query.find().then((res) => {
     fileList.value = res
