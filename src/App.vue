@@ -211,7 +211,7 @@ async function setHistory () {
       camera: canvas.cameraCature.toDataURL(),
       time: dayjs().format('YYYY-MM-DD HH:mm:ss')
     }
-    screens.value.unshift()
+    screens.value.unshift(capture)
     saveLeancloud(capture)
 
     await nextTick()
