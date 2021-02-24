@@ -252,7 +252,7 @@ function saveLeancloud(capture) {
 }
 
 function addImg () {
-  times.value = 5
+  times.value = 3
   drawImage()
   setHistory()
 }
@@ -265,6 +265,7 @@ function clearCountdown () {
 }
 
 function screenCapture(){
+  clearCountdown()
   recordState.value = !recordState.value
 }
 </script>
