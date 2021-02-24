@@ -1,4 +1,8 @@
 <template>
+  <div class="video-preview" style="position: relative; width: 500px; margin: 0 auto;">
+    <video ref="desktop" autoplay style="width: 500px;"></video>
+    <video ref="camera" autoplay style="position: absolute; width: 100px; top: 0; left: 0;"></video>
+  </div>
   <div class="control">
     <a href="javascript:void(0);" @click="screenCapture" class="btn" :class="{recording: recordState}">{{btnText}}</a>
   </div>
@@ -8,16 +12,16 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from "vue"
+import { computed, onMounted, ref, watch } from "vue"
 import _ from 'lodash'
 
-const btnText = ref('点击开始生成截屏')
-
 const recordState = ref(false)
-const desktop = ref(document.createElement("video"))
-const camera = ref(document.createElement("video"))
-desktop.value.autoplay = true
-camera.value.autoplay = true
+const desktop = ref(null)
+const camera = ref(null)
+// const desktop = ref(document.createElement("video"))
+// const camera = ref(document.createElement("video"))
+// desktop.value.autoplay = true
+// camera.value.autoplay = true
 
 const canvasPreview = ref(document.createElement("canvas"))
 canvasPreview.value.width = window.screen.width
@@ -103,12 +107,17 @@ function drawImage () {
     canvasPreview.value.height
   )
 
-  ctx.save()
-  const r = 200
-  ctx.arc(r, r, r, 0, 2 * Math.PI)
-  ctx.clip()
-  ctx.drawImage(camera.value, 0, 0, r * 2, r * 2)
-  ctx.restore()
+  const cameraW = 200
+  const cameraH = cameraW / (camera.value.videoWidth / camera.value.videoHeight)
+  ctx.drawImage(camera.value, 0, 0, cameraW, cameraH)
+
+  // 圆形摄像头
+  // ctx.save()
+  // const r = 200
+  // ctx.arc(r, r, r, 0, 2 * Math.PI)
+  // ctx.clip()
+  // ctx.drawImage(camera.value, 0, 0, r * 2, r * 2)
+  // ctx.restore()
 }
 
 async function setHistory () {
@@ -123,32 +132,33 @@ async function setHistory () {
   }
 }
 
-let countdown = null
+const times = ref(0)
+const btnText = computed(()=>{
+  if(recordState.value) return `🛑  截屏自动生成中: ${times.value}s`
+  return '点击开始生成截屏'
+})
 
-async function screenCapture(){
-  if (recordState.value) {
+let countdown = null
+watch(recordState, async (val) => {
+  if ( val ) {
+    !desktop.value.srcObject && await startCapture()
+
+    const countdownFun = () => {
+      if(times.value-- <= 0) {
+        times.value = 5
+        drawImage()
+        setHistory()
+      }
+    }
+    countdown = setInterval(countdownFun, 1000)
+  } else {
     clearInterval(countdown)
     countdown = null
-    btnText.value = '点击开始生成截屏'
-    recordState.value = false
-    return
   }
+})
 
-  if (!desktop.value.srcObject) await startCapture()
-  recordState.value=true
-
-  let times = 5
-  const countdownFun = () => {
-    btnText.value = `🛑  截屏自动生成中: ${times}s`
-    if(times-- <= 0) {
-      times = 5
-      drawImage()
-      setHistory()
-    }
-  }
-  countdown = setInterval(countdownFun, 1000)
-
-  setTimeout(() => drawImage() && setHistory(), 10)
+async function screenCapture(){
+  recordState.value = !recordState.value
 }
 </script>
 
