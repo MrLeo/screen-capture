@@ -7,13 +7,17 @@
     <a href="javascript:void(0);" @click="screenCapture" class="btn" :class="{recording: recordState}">{{btnText}}</a>
   </div>
   <transition-group name="list" tag="div" class="imgs" ref="imgs">
-    <img v-for="item in screens" :key="item.time" :src="item.img" :alt="item.time">
+    <div class="img-block" v-for="item in screens" :key="item.time">
+      <img :src="item.img" :alt="item.time">
+      <p>{{item.time}}</p>
+    </div>
   </transition-group>
 </template>
 
 <script setup>
 import _ from 'lodash'
 import { computed, nextTick, onMounted, reactive, ref, watch } from "vue"
+import dayjs from "dayjs"
 import 'viewerjs/dist/viewer.css'
 import Viewer from 'viewerjs' // https://github.com/fengyuanchen/viewerjs
 
@@ -42,10 +46,29 @@ const imgs = ref(null)
 const screens = ref([])
 let viewer = ref(null)
 
+let countdown = null
+
 onMounted(()=>{
   stopCapture()
 
   viewer.value = new Viewer(imgs.value.$el)
+  imgs.value.$el.addEventListener('show', function () {
+    recordState.value = false
+  })
+})
+
+watch(recordState, async (val) => {
+  if ( val ) {
+    if(!desktop.value.srcObject) {
+      await startCapture()
+    }
+
+    countdown = setInterval(() => {
+      if(--times.value <= 0) addImg()
+    }, 1000)
+  } else {
+    clearCountdown()
+  }
 })
 
 async function startCapture() {
@@ -80,7 +103,7 @@ async function startCapture() {
   }).catch(function(err) { console.log(err.name + ": " + err.message); }); // 总是在最后检查错误
 }
 
-const stopCapture = () => {
+function stopCapture () {
   recordState.value=false
 
   try {
@@ -156,7 +179,7 @@ async function setHistory () {
       img: canvas.preview.toDataURL(),
       desktop: canvas.desktopCature.toDataURL(),
       camera: canvas.cameraCature.toDataURL(),
-      time: +new Date()
+      time: dayjs().format('YYYY-MM-DD HH:mm:ss')
     })
 
     await nextTick()
@@ -167,34 +190,18 @@ async function setHistory () {
   }
 }
 
-const addImg = () => {
+function addImg () {
   times.value = 5
   drawImage()
   setHistory()
 }
 
-let countdown = null
-
-const clearCountdown = () => {
-    clearInterval(countdown)
-    countdown = null
-    addImg()
+function clearCountdown () {
+  clearInterval(countdown)
+  countdown = null
+  times.value = 0
+  addImg()
 }
-
-watch(recordState, async (val) => {
-  if ( val ) {
-    if(!desktop.value.srcObject) {
-      await startCapture()
-    }
-
-    // setTimeout(() => clearCountdown(),100)
-    countdown = setInterval(() => {
-      if(--times.value <= 0) addImg()
-    }, 1000)
-  } else {
-    clearCountdown()
-  }
-})
 
 function screenCapture(){
   recordState.value = !recordState.value
@@ -234,11 +241,23 @@ function screenCapture(){
   align-items: center;
   justify-content: center;
 }
-.imgs img{
+.imgs .img-block {
+  width: 130px;
   margin: 10px;
-  border: 1px solid #ccc;
-  width: 100px;
+  border: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.imgs img{
   cursor: pointer;
+  width: 100%;
+}
+.imgs p {
+  padding: 0;
+  margin: 0;
+  color: #ccc;
+  font-size: 10px;
 }
 
 .list-enter-active,
