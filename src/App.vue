@@ -91,9 +91,10 @@ watch(recordState, async (val) => {
   if ( val ) {
     if(!desktop.value.srcObject) {
       await startCapture()
+      await nextTick()
     }
 
-    clearCountdown()
+    setTimeout(() => clearCountdown(), 100)
     countdown = setInterval(() => {
       if(--times.value <= 0) addImg()
     }, 1000)
