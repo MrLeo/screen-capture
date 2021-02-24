@@ -93,6 +93,7 @@ watch(recordState, async (val) => {
       await startCapture()
     }
 
+    clearCountdown()
     countdown = setInterval(() => {
       if(--times.value <= 0) addImg()
     }, 1000)
@@ -265,7 +266,6 @@ function clearCountdown () {
 }
 
 function screenCapture(){
-  clearCountdown()
   recordState.value = !recordState.value
 }
 </script>
