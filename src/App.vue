@@ -14,7 +14,7 @@
   </transition-group>
 
 
-  <div class="imgs" v-if="fileList && fileList.length" ref="imgs2" style="margin-top: 100vh">
+  <div class="imgs" v-if="fileList && fileList.length" style="margin-top: 100vh">
     <div class="img-block" v-for="item in fileList" :key="item.id">
       <img :src="item.attributes.url" :alt="item.attributes.name">
     </div>
