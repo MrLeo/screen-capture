@@ -6,14 +6,16 @@
   <div class="control">
     <a href="javascript:void(0);" @click="screenCapture" class="btn" :class="{recording: recordState}">{{btnText}}</a>
   </div>
-  <transition-group name="list" tag="div" class="imgs">
+  <transition-group name="list" tag="div" class="imgs" ref="imgs">
     <img v-for="item in screens" :key="item.time" :src="item.img" :alt="item.time">
   </transition-group>
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from "vue"
 import _ from 'lodash'
+import { computed, onMounted, ref, watch } from "vue"
+import 'viewerjs/dist/viewer.css'
+import Viewer from 'viewerjs'
 
 const recordState = ref(false)
 const desktop = ref(null)
@@ -27,7 +29,23 @@ const canvasPreview = ref(document.createElement("canvas"))
 canvasPreview.value.width = window.screen.width
 canvasPreview.value.height = window.screen.height
 
+const times = ref(0)
+const btnText = computed(()=> (recordState.value ? `🛑  截屏自动生成中: ${times.value}s` : '点击开始生成截屏'))
+
+const imgs = ref(null)
 const screens = ref([])
+let viewer = ref(null)
+
+onMounted(()=>{
+  stopCapture()
+
+  viewer.value = new Viewer(imgs.value.$el, {
+    inline: true,
+    viewed() {
+      viewer.zoomTo(1);
+    },
+  })
+})
 
 async function startCapture() {
   try {
@@ -87,15 +105,10 @@ const stopCapture = () => {
   }
 }
 
-onMounted(()=>stopCapture())
-
 function drawImage () {
   const ctx = canvasPreview.value.getContext('2d')
   if(!ctx) return stopCapture()
 
-  console.log(`[LOG] -> drawImage -> desktop`, desktop)
-  console.log(`[LOG] -> drawImage -> camera`, camera)
-  
   canvasPreview.value.width = desktop.value.videoWidth
   canvasPreview.value.height = desktop.value.videoHeight
 
@@ -126,38 +139,44 @@ async function setHistory () {
       img: canvasPreview.value.toDataURL(),
       time: +new Date()
     })
+    viewer.value.update()
+    console.log(`[LOG] -> setHistory -> viewer`, viewer)
   } catch (err) {
     console.log(`[LOG] -> si -> err`, err)
     stopCapture()
   }
 }
 
-const times = ref(0)
-const btnText = computed(()=>{
-  if(recordState.value) return `🛑  截屏自动生成中: ${times.value}s`
-  return '点击开始生成截屏'
-})
+const addImg = () => {
+  times.value = 5
+  drawImage()
+  setHistory()
+}
 
 let countdown = null
-watch(recordState, async (val) => {
-  if ( val ) {
-    !desktop.value.srcObject && await startCapture()
 
-    const countdownFun = () => {
-      if(times.value-- <= 0) {
-        times.value = 5
-        drawImage()
-        setHistory()
-      }
-    }
-    countdown = setInterval(countdownFun, 1000)
-  } else {
+const clearCountdown = () => {
     clearInterval(countdown)
     countdown = null
+    addImg()
+}
+
+watch(recordState, async (val) => {
+  if ( val ) {
+    if(!desktop.value.srcObject) {
+      await startCapture()
+    }
+
+    // setTimeout(() => clearCountdown(),100)
+    countdown = setInterval(() => {
+      if(--times.value <= 0) addImg()
+    }, 1000)
+  } else {
+    clearCountdown()
   }
 })
 
-async function screenCapture(){
+function screenCapture(){
   recordState.value = !recordState.value
 }
 </script>
@@ -199,6 +218,7 @@ async function screenCapture(){
   margin: 10px;
   border: 1px solid #ccc;
   width: 100px;
+  cursor: pointer;
 }
 
 .list-enter-active,
