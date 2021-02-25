@@ -1,18 +1,17 @@
 <template>
-  <div style="position: relative; width: 500px; margin: 0 auto;">
-    <video ref="desktop" autoplay style="width: 500px;"></video>
-    <video ref="camera" autoplay style="position: absolute; width: 100px; top: 0; left: 0;"></video>
+  <div style="position: relative;height: 200px;display: flex;align-items: center;justify-content: center;">
+    <video ref="desktop" autoplay style="height: 200px;"></video>
+    <video ref="camera" autoplay style="height: 200px;"></video>
   </div>
   <div class="control">
     <a href="javascript:void(0);" @click="screenCapture" class="btn" :class="{recording: recordState}">{{btnText}}</a>
   </div>
   <transition-group name="list" tag="div" class="imgs" ref="imgs">
     <div class="img-block" v-for="item in screens" :key="item.time">
-      <img :src="item.img" :alt="item.time">
+      <img :src="item.img || item.desktop || item.camera" :alt="item.time">
       <p>{{item.time}}</p>
     </div>
   </transition-group>
-
 
   <div class="imgs" v-if="fileList && fileList.length" style="margin-top: 100vh">
     <div class="img-block" v-for="item in fileList" :key="item.id">
@@ -81,7 +80,7 @@ onMounted(()=>{
 
 watch(recordState, async (val) => {
   if ( val ) {
-    if(!desktop.value.srcObject) {
+    if(!desktop.value.srcObject || !camera.value.srcObject) {
       await startCapture()
       await nextTick()
     }
@@ -101,9 +100,13 @@ async function getDisplayMedia() {
     captureStream.addEventListener('removetrack', (event) => {
       console.log(`${event.track.kind} track removed`);
     })
+    captureStream.onremovetrack = () => console.log('getDisplayMedia onremovetrack')
+    captureStream.onaddtrack = () => console.log('getDisplayMedia onaddtrack')
+    captureStream.onactive = () => console.log('getDisplayMedia onactive')
+    captureStream.oninactive = () => console.log('getDisplayMedia oninactive')
   } catch(err) {
-    console.error("Error: " + err)
-    new Map([
+    console.error("getDisplayMedia Error: " + err)
+    _.forEach([
       [/AbortError/,'屏幕共享意外终止'],
       [/InvalidStateError/,'屏幕共享加载失败'],
       [/NotAllowedError/,'用户拒绝授予访问屏幕区域的权限，或者不允许当前浏览实例访问屏幕共享'],
@@ -112,10 +115,11 @@ async function getDisplayMedia() {
       [/OverconstrainedError/, '转换错误: 视频流解析失败'],
       [/TypeError/, '类型错误'],
       [/./, '浏览器不支持webrtc']
-    ]).forEach((val,key)=> {
-      if(key.test(""+err)) {
-        alert(val)
-        throw err
+    ], (val,key)=> {
+    console.log(`[LOG] -> getDisplayMedia -> val,key`, val,key)
+      if(val[0].test(""+err)) {
+        alert(val[1])
+        return false
       }
     })
   }
@@ -128,19 +132,17 @@ async function getUserMedia() {
     captureStream.addEventListener('removetrack', (event) => {
       console.log(`${event.track.kind} track removed`);
     })
+    captureStream.onremovetrack = () => console.log('getDisplayMedia onremovetrack')
+    captureStream.onaddtrack = () => console.log('getDisplayMedia onaddtrack')
+    captureStream.onactive = () => console.log('getDisplayMedia onactive')
+    captureStream.oninactive = () => console.log('getDisplayMedia oninactive')
   } catch(err) {
-    console.log(err.name + ": " + err.message)
+    console.log("getUserMedia Error:" + err.name + ": " + err.message)
   }
 }
-async function startCapture() {
-  try {
-    Promise.all([
-      getDisplayMedia(),
-      getUserMedia()
-    ])
-  } catch (err) {
-    console.error(`[LOG] -> startCapture -> err`, err)
-  }
+function startCapture() {
+  getDisplayMedia()
+  getUserMedia()
 }
 
 function stopCapture () {
@@ -234,8 +236,7 @@ async function setHistory () {
 }
 
 function addImg () {
-  if(!_.get(desktop,'value.srcObject.active') && !_.get(camera,'value.srcObject.active')){
-    recordState.value = false
+  if(!_.get(desktop.value,'srcObject.active') && !_.get(camera.value,'srcObject.active')){
     return
   }
   drawImg()
