@@ -16,7 +16,7 @@
 
   <div class="imgs" v-if="fileList && fileList.length" style="margin-top: 100vh">
     <div class="img-block" v-for="item in fileList" :key="item.id">
-      <img :src="item.attributes.url" :alt="item.attributes.name">
+      <img v-if="item.attributes.url" :src="item.attributes.url" :alt="item.attributes.name">
     </div>
   </div>
 </template>
@@ -36,12 +36,6 @@ import 'viewerjs/dist/viewer.css'
 import Viewer from 'viewerjs' // https://github.com/fengyuanchen/viewerjs
 import AV from 'leancloud-storage'
 
-AV.init({
-  appId: "7qjY0VDwGw02BmgMqqGfDFO0-gzGzoHsz",
-  appKey: "eYX7CBXn2T7iUGa9LAUnIt9q",
-  serverURL: "https://7qjy0vdw.lc-cn-n1-shared.com"
-})
-
 const recordState = ref(false)
 const desktop = ref(null)
 const camera = ref(null)
@@ -60,8 +54,7 @@ _.forEach(canvas, val => {
   val.height = window.screen.height
 })
 
-const times = ref(0)
-const btnText = computed(()=> (recordState.value ? `🛑  截屏自动生成中: ${times.value}s` : '点击开始生成截屏'))
+const btnText = computed(()=> (recordState.value ? `🛑  截屏自动生成中` : '点击开始生成截屏'))
 
 const imgs = ref(null)
 const screens = ref([])
@@ -78,13 +71,11 @@ onMounted(()=>{
   imgs.value.$el.addEventListener('show', function () {
     recordState.value = false
   })
-
-  const query = new AV.Query('_File')
-  query.limit(1000)
-  query.descending('createdAt')
-  query.find().then((res) => {
-    fileList.value = res
+  imgs.value.$el.addEventListener('hide', function () {
+    recordState.value = true
   })
+
+  getLeancloud()
 })
 
 watch(recordState, async (val) => {
@@ -94,20 +85,21 @@ watch(recordState, async (val) => {
       await nextTick()
     }
 
-    setTimeout(() => clearCountdown(), 100)
-    countdown = setInterval(() => {
-      if(--times.value <= 0) addImg()
-    }, 1000)
+    countdown = setInterval(() => { addImg() }, 1000)
   } else {
     clearCountdown()
   }
 })
 
-async function startCapture() {
+async function getDisplayMedia() {
   try {
     // https://developer.mozilla.org/zh-CN/docs/Web/API/Screen_Capture_API/%E4%BD%BF%E7%94%A8%E5%B1%8F%E5%B9%95%E6%8D%95%E8%8E%B7API
-    desktop.value.srcObject = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: "always" }, audio: false })
-    console.log(`[LOG] -> startCapture ->`, desktop)
+    const captureStream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: "always" }, audio: false })
+    desktop.value.srcObject = captureStream
+    console.log(`[LOG] -> getDisplayMedia ->`, captureStream, desktop)
+    captureStream.addEventListener('removetrack', (event) => {
+      console.log(`${event.track.kind} track removed`);
+    })
   } catch(err) {
     console.error("Error: " + err)
     new Map([
@@ -126,13 +118,24 @@ async function startCapture() {
       }
     })
   }
-
-  navigator.mediaDevices.getUserMedia({ audio: false, video: { width: 1280, height: 720 } }).then(function(mediaStream) {
-    camera.value.srcObject = mediaStream
-    camera.value.onloadedmetadata = function(e) {
-      camera.value.play()
-    }
-  }).catch(function(err) { console.log(err.name + ": " + err.message); }); // 总是在最后检查错误
+}
+async function getUserMedia() {
+  try {
+    const captureStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { width: 1280, height: 720 } })
+    camera.value.srcObject = captureStream
+    console.log(`[LOG] -> getUserMedia ->`, captureStream, camera)
+    captureStream.addEventListener('removetrack', (event) => {
+      console.log(`${event.track.kind} track removed`);
+    })
+  } catch(err) {
+    console.log(err.name + ": " + err.message)
+  }
+}
+function startCapture() {
+  return Promise.all([
+    getDisplayMedia(),
+    getUserMedia()
+  ])
 }
 
 function stopCapture () {
@@ -146,7 +149,7 @@ function stopCapture () {
       desktop.value.srcObject = null
     }
   } catch (err) {
-    console.log(`[error] -> stopCapture -> desktop`, err)
+    console.error(`[error] -> stopCapture -> desktop`, err)
   }
 
   try {
@@ -162,6 +165,8 @@ function stopCapture () {
 }
 
 function drawCature (name, source) {
+  if(!_.get(source,'value.srcObject.active')) return
+
   const cvs = canvas[name]
   const ctx = cvs.getContext('2d')
 
@@ -179,96 +184,112 @@ function drawCature (name, source) {
   return ctx
 }
 
-function drawImage () {
-  try {
-    drawCature('desktopCature', desktop)
-    drawCature('cameraCature', camera)
-  
-    const ctx = drawCature('preview', desktop)
-    if(!ctx) throw new Error('error in canvas.getContext') 
-  
-    // 矩形摄像头
-    const cameraW = 200
-    const cameraH = cameraW / (camera.value.videoWidth / camera.value.videoHeight)
-    ctx.drawImage(camera.value, 0, 0, cameraW, cameraH)
-  
-    // 圆形摄像头
-    // ctx.save()
-    // const r = 200
-    // ctx.arc(r, r, r, 0, 2 * Math.PI)
-    // ctx.clip()
-    // ctx.drawImage(camera.value, 0, 0, r * 2, r * 2)
-    // ctx.restore()
-  } catch (err) {
-    console.error(`[LOG] -> drawImage -> err`, err)
-    stopCapture()
-  }
+function drawImg () {
+  drawCature('desktopCature', desktop)
+  drawCature('cameraCature', camera)
+
+  if(!_.get(desktop,'value.srcObject.active')) return
+  const ctx = drawCature('preview', desktop)
+  if(!ctx) throw new Error('error in canvas.getContext') 
+
+  if(!_.get(camera,'value.srcObject.active')) return
+  // 矩形摄像头
+  const cameraW = 200
+  const cameraH = cameraW / (camera.value.videoWidth / camera.value.videoHeight)
+  ctx.drawImage(camera.value, 0, 0, cameraW, cameraH)
+
+  // 圆形摄像头
+  // ctx.save()
+  // const r = 200
+  // ctx.arc(r, r, r, 0, 2 * Math.PI)
+  // ctx.clip()
+  // ctx.drawImage(camera.value, 0, 0, r * 2, r * 2)
+  // ctx.restore()
+}
+
+function isCanvasBlank(canvas) {
+    var blank = document.createElement('canvas');//系统获取一个空canvas对象
+    blank.width = canvas.width;
+    blank.height = canvas.height;
+    return canvas.toDataURL() == blank.toDataURL();//比较值相等则为空
 }
 
 async function setHistory () {
-  try {
-    const capture = {
-      img: canvas.preview.toDataURL(),
-      desktop: canvas.desktopCature.toDataURL(),
-      camera: canvas.cameraCature.toDataURL(),
-      time: dayjs().format('YYYY-MM-DD HH:mm:ss')
-    }
-    screens.value.unshift(capture)
-    saveLeancloud(capture)
-
-    await nextTick()
-    viewer.value.update()
-  } catch (err) {
-    console.log(`[LOG] -> setHistory -> err`, err)
-    stopCapture()
+  const capture = {
+    img: isCanvasBlank(canvas.preview) ? '' : canvas.preview.toDataURL(),
+    desktop: isCanvasBlank(canvas.desktopCature) ? '' : canvas.desktopCature.toDataURL(),
+    camera: isCanvasBlank(canvas.cameraCature) ? '' : canvas.cameraCature.toDataURL(),
+    time: dayjs().format('YYYY-MM-DD HH:mm:ss')
   }
-}
+  screens.value.unshift(capture)
+  saveLeancloud(capture)
 
-// https://leancloud.cn/docs/leanstorage_guide-js.html#hash632374954
-function saveLeancloud(capture) {
-  const name = `${+new Date()}_${_.random(10, true)}`
-  
-  const previewFile = new AV.File(`preview_${name}.png`, { base64: capture.desktop })
-  previewFile.save().then((file) => {
-    // console.log(`previewFile 文件保存完成。objectId：${file.id}`,file);
-    capture.previewFile = {id: file.id, url: file.attributes.url}
-  }, (error) => {
-    // console.log(`[LOG] -> file.save -> error`, error)
-  })
-
-  const desktopFile = new AV.File(`desktop_${name}.png`, { base64: capture.desktop })
-  desktopFile.save().then((file) => {
-    // console.log(`desktopFile 文件保存完成。objectId：${file.id}`,file);
-    capture.desktopFile = {id: file.id, url: file.attributes.url}
-  }, (error) => {
-    // console.log(`[LOG] -> file.save -> error`, error)
-  })
-
-  const cameraFile = new AV.File(`camera_${name}.png`, { base64: capture.camera })
-  cameraFile.save().then((file) => {
-    // console.log(`cameraFile 文件保存完成。objectId：${file.id}`,file);
-    capture.cameraFile = {id: file.id, url: file.attributes.url}
-  }, (error) => {
-    // console.log(`[LOG] -> file.save -> error`, error)
-  })
+  await nextTick()
+  viewer.value.update()
 }
 
 function addImg () {
-  times.value = 3
-  drawImage()
+  drawImg()
   setHistory()
 }
 
 function clearCountdown () {
   clearInterval(countdown)
   countdown = null
-  times.value = 0
-  addImg()
 }
 
 function screenCapture(){
   recordState.value = !recordState.value
 }
+
+// https://leancloud.cn/docs/leanstorage_guide-js.html#hash632374954
+function saveLeancloud(capture) {
+  const name = `${+new Date()}_${_.random(10, true)}`
+  window.addEventListener('beforeunload', (event) => {
+    // Cancel the event as stated by the standard.
+    event.preventDefault()
+    // Chrome requires returnValue to be set.
+    event.returnValue = '截图生成中，请稍等'
+
+    return '截图生成中，请稍等'
+  })
+  if(capture.desktop){
+    const desktopFile = new AV.File(`desktop_${name}.png`, { base64: capture.desktop })
+    desktopFile.save().then((file) => {
+      window.removeEventListener('beforeunload')
+      // console.log(`desktopFile 文件保存完成。objectId：${file.id}`,file);
+      capture.desktopFile = {id: file.id, url: file.attributes.url}
+    }, (error) => {
+      // console.log(`[LOG] -> file.save -> error`, error)
+    })
+  }
+  
+  if(capture.camera){
+    const cameraFile = new AV.File(`camera_${name}.png`, { base64: capture.camera })
+    cameraFile.save().then((file) => {
+      window.removeEventListener('beforeunload')
+      // console.log(`cameraFile 文件保存完成。objectId：${file.id}`,file);
+      capture.cameraFile = {id: file.id, url: file.attributes.url}
+    }, (error) => {
+      // console.log(`[LOG] -> file.save -> error`, error)
+    })
+  }
+}
+
+function getLeancloud () {
+  const query = new AV.Query('_File')
+  query.limit(1000)
+  query.descending('createdAt')
+  query.find().then((res) => {
+    fileList.value = res
+  })
+}
+
+AV.init({
+  appId: "7qjY0VDwGw02BmgMqqGfDFO0-gzGzoHsz",
+  appKey: "eYX7CBXn2T7iUGa9LAUnIt9q",
+  serverURL: "https://7qjy0vdw.lc-cn-n1-shared.com"
+})
 </script>
 
 <style>
