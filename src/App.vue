@@ -13,7 +13,7 @@
     </div>
   </transition-group>
 
-  <div class="imgs" v-if="fileList && fileList.length" style="margin-top: 100vh">
+  <div class="imgs" style="margin-top: 101vh" ref="imgs2">
     <div class="img-block" v-for="item in fileList" :key="item.id">
       <img v-if="item.attributes.url" :src="item.attributes.url" :alt="item.attributes.name">
     </div>
@@ -59,15 +59,17 @@ const imgs = ref(null)
 const screens = ref([])
 let viewer = ref(null)
 
+const imgs2 = ref(null)
 const fileList = ref([])
 
 let countdown = null
 
 onMounted(()=>{
   stopCapture()
-  recordState.value=true
+  startCapture()
 
   viewer.value = new Viewer(imgs.value.$el)
+  
   imgs.value.$el.addEventListener('show', function () {
     recordState.value = false
   })
@@ -116,7 +118,6 @@ async function getDisplayMedia() {
       [/TypeError/, '类型错误'],
       [/./, '浏览器不支持webrtc']
     ], (val,key)=> {
-    console.log(`[LOG] -> getDisplayMedia -> val,key`, val,key)
       if(val[0].test(""+err)) {
         alert(val[1])
         return false
@@ -292,6 +293,7 @@ function getLeancloud () {
   query.descending('createdAt')
   query.find().then((res) => {
     fileList.value = res
+    setTimeout(() => new Viewer(imgs2.value.$el), 0)
   })
 }
 
