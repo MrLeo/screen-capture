@@ -66,6 +66,7 @@ let countdown = null
 
 onMounted(()=>{
   stopCapture()
+  recordState.value=true
 
   viewer.value = new Viewer(imgs.value.$el)
   imgs.value.$el.addEventListener('show', function () {
@@ -131,11 +132,15 @@ async function getUserMedia() {
     console.log(err.name + ": " + err.message)
   }
 }
-function startCapture() {
-  return Promise.all([
-    getDisplayMedia(),
-    getUserMedia()
-  ])
+async function startCapture() {
+  try {
+    Promise.all([
+      getDisplayMedia(),
+      getUserMedia()
+    ])
+  } catch (err) {
+    console.error(`[LOG] -> startCapture -> err`, err)
+  }
 }
 
 function stopCapture () {
