@@ -229,6 +229,10 @@ async function setHistory () {
 }
 
 function addImg () {
+  if(!_.get(desktop,'value.srcObject.active') && !_.get(camera,'value.srcObject.active')){
+    recordState.value = false
+    return
+  }
   drawImg()
   setHistory()
 }
