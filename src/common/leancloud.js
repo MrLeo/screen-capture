@@ -28,7 +28,7 @@ export function saveLeancloud ({base64, prefix, name}) {
 export function getLeancloud () {
   return new Promise((resolve, reject) => {
     const query = new AV.Query('_File')
-    // query.limit(1000)
+    query.limit(1000)
     query.descending('createdAt')
     query.find().then((res) => resolve(res))
   })
