@@ -4,7 +4,7 @@ const { resolve } = require('path')
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: './',
+  base: process.env.NODE_ENV==='production' ? '/screen-capture/': './',
   build: {
     outDir: 'screen-capture',
     rollupOptions: {

@@ -7,7 +7,7 @@
     <p class="status">已工作</p>
     <div class="timer">{{timer}}</div>
     <div class="btn" @click="workBtn=!workBtn">{{workBtnTxt}}</div>
-    <a class="btn btn__leave" href="/admin/">离开工作</a>
+    <a class="btn btn__leave" href="./admin/">离开工作</a>
   </div>
 </template>
 
@@ -276,6 +276,8 @@ body::before{
   cursor: pointer;
   border: 1px solid #fff;
   margin-top: 40px;
+  text-decoration: none;
+  color: #fff;
 }
 .btn.btn__leave{
   position: absolute;
